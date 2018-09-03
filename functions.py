@@ -28,12 +28,14 @@ class FunctionLibrary:
         return ret.reshape(x.shape)
 
     def sigmoid_grad(self, x):
-        return self.sigmoid(x) * (1 - self.sigmoid(x))
+        sgm = self.sigmoid(x)
+        return sgm * (1 - sgm)
 
     @staticmethod
     def softmax(x):
-        exponents = np.exp(x - np.max(x))
-        return exponents / np.sum(exponents)
+        exponents = np.exp(x - np.expand_dims(np.max(x, axis=1), axis=1))
+        ret = exponents / np.expand_dims(np.sum(exponents, axis=1), axis=1)
+        return ret
 
     @staticmethod
     def softmax_grad():
@@ -45,7 +47,7 @@ class FunctionLibrary:
 
     @staticmethod
     def l2_loss_grad(x):
-        return 2 * np.mean(x)
+        return 2 * x / x.size
 
     @staticmethod
     def l1_loss(x):
@@ -53,19 +55,16 @@ class FunctionLibrary:
 
     @staticmethod
     def l1_loss_grad(x):
-        ret = np.where(x > 0, 1, -1)
-        arr_x, arr_y = np.where(x == 0)
-        for i, j in zip(arr_x, arr_y):
-            ret[i, j] = 0.0
-        return ret.reshape(x.shape)
+        ret = np.where(x > 0, 1, -1) * np.where(x == 0, 0, 1)
+        return ret.reshape(x.shape) / x.size
 
     @staticmethod
     def mse(x, y):
         """
-        Calculates the error of x with respect to y, i.e, x is the output obtained, y is the ground truth output
+        Calculates the squared error of x with respect to y, i.e, x is the output obtained, y is the ground truth output
         :param x: float or vector of floats
         :param y: float or vector of floats
-        :return: scalat float value
+        :return: scalar float value
         """
         return np.mean((x - y) ** 2)
 
@@ -77,7 +76,29 @@ class FunctionLibrary:
         :param y: float or vector of floats
         :return: float or vector of gradient os MSE cost wrt x
         """
-        return 2.0 * (x - y)
+        return 2.0 * (x - y) / x.size
+
+    @staticmethod
+    def mae(x, y):
+        """
+        Calculates the absolute error of x with respect to y, where, x : output obtained, y : the ground truth labels
+        :param x: float or vector of floats
+        :param y: float or vector of floats
+        :return: scalar float value
+        """
+        return np.mean(np.abs(x - y))
+
+    @staticmethod
+    def mae_grad(x, y):
+        """
+        Calculates the gradient of MAE cost wrt estimate x. Vector y is assumed to be ground truth
+        :param x: float or vector of floats
+        :param y: float or vector of floats
+        :return: float or vector of gradient os MSE cost wrt x
+        """
+        diff = x - y
+        ret = np.where(diff > 0, 1, -1) * np.where(diff == 0, 0, 1)
+        return ret.reshape(x) / x.size
 
     @staticmethod
     def cross_entropy(x, y):
@@ -87,7 +108,7 @@ class FunctionLibrary:
         :param y: Target probability distribution -- float or vector of floats
         :return: a scalar float value equal to the cross entropy cost between the probability distributions x and y
         """
-        return np.sum(y * -np.log(x))
+        return np.sum(np.where(y > 0, y * -np.log(x), 0))
 
     @staticmethod
     def cross_entropy_grad(x, y):

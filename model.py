@@ -26,7 +26,7 @@ class Model:
         :param l2_weight:
         :param l1_weight:
         """
-        assert len(layers) >= 2, "There should be atleast 2 layers in a Neural Network"
+        assert len(layers) >= 2, "There should be at least 2 layers in a Neural Network"
 
         self.layers = layers
         self.num_layers = len(layers)
@@ -50,6 +50,7 @@ class Model:
 
         self.Z = []
         self.A = []
+        self.decay = None
 
     def feed_forward(self, x, save_activations=False):
         """
@@ -60,7 +61,7 @@ class Model:
         process to a model variable
         :return: returns the estimated output activations
         """
-        assert x.shape == (self.layers[0], 1), "Input dimension for feed forward does not match"
+        assert x.shape[-2:] == (self.layers[0], 1), 'Input dimension for feed forward does not match'
         if save_activations:
             self.Z.clear()
             self.A.clear()
@@ -91,9 +92,19 @@ class Model:
         return self.loss_fn.grad(y, y_gt) * self.output_activation.grad(self.Z[-1])  # Hadamard product of 2 vectors
 
     def get_gradients(self, x, y_gt):
-        assert (self.layers[0], 1) == x.shape, "Input shape does not match. Expected shape: (len, 1)"
+        """
+        Estimates the gradient of training cost wrt model weights and biases through back propagation
+        :param x: Input features
+        :param y_gt: Ground truth labels of input features
+        :return: A tuple (gradient wrt weights, gradient wrt biases, cost)
+        """
+        assert x.shape[-2:] == (self.layers[0], 1), 'Input dimension for feed forward does not match'
+        assert (x.ndim == 2 or x.ndim == 3), "Expected shape: (len, 1) or (batch_size, len, 1)"
+        if x.ndim == 2:
+            x = np.expand_dims(x, axis=0)
 
         y = self.feed_forward(x, True)  # self.A[-1] == y
+        # print("shape of input, output = {}, {}".format(x.shape, y.shape))
 
         # Calculating gradients at output layer
         y_gt = y_gt.reshape(y.shape)
@@ -105,21 +116,24 @@ class Model:
         '''Back propagation (Layers are 0 indexed)'''
         for i in np.arange(self.num_layers - 2, -1, -1):  # i runs from (num_layers - 2) to 0
             # delta is the gradient of linear accumulation of values at layer i + 1 wrt cost function
-            grad_weights.append(np.matmul(delta, self.A[i].T))  # gradient of weights connecting layer i to i + 1
+
+            # gradient of weights connecting layer i to i + 1
+            grad_weights.append(np.matmul(delta, np.transpose(self.A[i], axes=(0, 2, 1))))
             if self.l2_weight > 0:
                 grad_weights[-1] += self.l2_weight * self.l2_loss.grad(self.weights[i])
             if self.l1_weight > 0:
                 grad_weights[-1] += self.l1_weight * self.l1_loss.grad(self.weights[i])
             grad_biases.append(delta)  # gradient of bias of layer i + 1
+
             if i > 0:
-                delta = np.matmul(self.weights[i].T, delta) * self.activation.grad(self.Z[i - 1])
+                delta = np.matmul(np.transpose(self.weights[i]), delta) * self.activation.grad(self.Z[i - 1])
                 # delta is the gradient corresponding to ith layer accumulations now
 
-        grad_weights = list(reversed(grad_weights))
-        grad_biases = list(reversed(grad_biases))
+        grad_weights = [np.mean(wts, axis=0) for wts in list(reversed(grad_weights))]
+        grad_biases = [np.mean(bs, axis=0) for bs in list(reversed(grad_biases))]
         return np.array(grad_weights), np.array(grad_biases), cost
 
-    def fit(self, train_data, mini_batch_size=10, num_epochs=10, learning_rate=1e-3, momentum_factor=0.1,
+    def fit(self, train_data, mini_batch_size=10, num_epochs=10, learning_rate=1e-3, lr_decay=0.01, momentum_factor=0.1,
             l2_weight=0.0, l1_weight=0.0):
         """
         :param train_data: 2D vector of float with each row representing a separate input data
@@ -129,12 +143,14 @@ class Model:
         :param learning_rate: float value denoting learning rate
         :param momentum_factor: float value denoting the factor by which change in parameters from previous iterations
                                 need to be discounted
-        :param l2_weight:
-        :param l1_weight:
+        :param lr_decay: learning rate decay factor. LR is decayed as LR = Lr / (1 + lr_decay * num_epoch)
+        :param l2_weight: Multiplication factor of L2 cost of parameters
+        :param l1_weight: Multiplication factor of L1 cost of parameters
         :return: None
         """
         self.l2_weight = l2_weight
         self.l1_weight = l1_weight
+        self.decay = lr_decay
         num_data = train_data.shape[0]
         num_mini_batches = int(num_data / mini_batch_size)
         if num_data % mini_batch_size != 0:
@@ -143,23 +159,25 @@ class Model:
             random.shuffle(train_data)
             costs = []
             for batch_idx in range(num_mini_batches):
-                start_index = batch_idx * mini_batch_size
+                start_index = int(batch_idx * mini_batch_size)
                 end_index = min(start_index + mini_batch_size, num_data)
-                batch = train_data[start_index: end_index]
-                batch_cost: float = 0.0
-                for data in batch:
-                    grad_weights, grad_biases, cost = self.get_gradients(data[:-1].reshape(data[:-1].shape[0], 1),
-                                                                         one_hot([data[-1]], 10))
-                    self.delta_w = momentum_factor * self.delta_w - learning_rate * grad_weights
-                    self.delta_b = momentum_factor * self.delta_b - learning_rate * grad_biases
-                    batch_cost += cost
-
                 batch_size = float(end_index - start_index)
+                batch = train_data[start_index: end_index]
+
+                grad_weights, grad_biases, batch_cost = self.get_gradients(np.expand_dims(batch[:, :-1], axis=-1),
+                                                                           one_hot(batch[:, -1], 10))
+                self.delta_w = momentum_factor * self.delta_w - learning_rate * grad_weights
+                self.delta_b = momentum_factor * self.delta_b - learning_rate * grad_biases
+                self.weights += self.delta_w
+                self.bias += self.delta_b
+
                 costs.append(batch_cost / batch_size)
                 if batch_idx % 10 == 0:
-                    print("batch %i : %0.8f" % (batch_idx, batch_cost / batch_size))
-                self.weights += self.delta_w / batch_size
-                self.bias += self.delta_b / batch_size
+                    print("batch {} : {}".format(batch_idx, batch_cost / batch_size))
+            if learning_rate > 5e-3:
+                learning_rate *= (1. / (1. + self.decay * epoch))
+            print("Learning rate = {}".format(learning_rate))
+            print("Epoch {} : Cost = {}".format(epoch, np.mean(costs)))
 
     def predict(self, test_input):
         """
