@@ -35,11 +35,21 @@ class FunctionLibrary:
     def softmax(x):
         exponents = np.exp(x - np.expand_dims(np.max(x, axis=1), axis=1))
         ret = exponents / np.expand_dims(np.sum(exponents, axis=1), axis=1)
+        assert (not (ret == 0).any()), "Error in softmax\n{}".format(x)
         return ret
 
-    @staticmethod
-    def softmax_grad():
-        pass
+    def softmax_grad(self, x):
+        """
+        Evaluates gradient matrix of softmax function
+        :param x: A vector with shape (len,) or (len, 1), wrt which softmax gradient matrix need to be computed
+        :return: A matrix with shape (len, len). Element at ith row and jth column corresponds to derivative of
+                 softmax(x)_j wrt x_i
+        """
+        p = self.softmax(x)
+        if p.ndim == 1:
+            np.expand_dims(p, axis=-1)
+        ret = np.fill_diagonal(np.zeros((p.shape[0], p.shape[0])), p) - np.matmul(p, p.T)
+        return ret
 
     @staticmethod
     def l2_loss(x):
@@ -108,7 +118,8 @@ class FunctionLibrary:
         :param y: Target probability distribution -- float or vector of floats
         :return: a scalar float value equal to the cross entropy cost between the probability distributions x and y
         """
-        return np.sum(np.where(y > 0, y * -np.log(x), 0))
+        assert not (x == 0).any(), "x is 0 somewhere {}".format(x)
+        return np.sum(y * -np.log(x))
 
     @staticmethod
     def cross_entropy_grad(x, y):
