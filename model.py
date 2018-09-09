@@ -182,6 +182,8 @@ class Model:
         num_mini_batches = int(num_data / mini_batch_size)
         if num_data % mini_batch_size != 0:
             num_mini_batches += 1
+        print("Number of training data =", num_data)
+        print("Batch size = {}, Number of mini-batches = {}".format(mini_batch_size, num_mini_batches))
 
         train_cost = []
         test_cost = []
@@ -209,25 +211,30 @@ class Model:
                 time_per_batch.append(time_taken)
                 time_avg += (time_taken - time_avg) / (batch_idx + 1)
 
-                train_cost.append(batch_cost / batch_size)
+                train_cost.append([epoch * num_mini_batches + batch_idx, batch_cost / batch_size])
+                """
                 if batch_idx % 10 == 0:
-                    #print("batch {} : Cost = {}, Avg time = {}".format(batch_idx, batch_cost / batch_size, time_avg))
+                    # print("batch {} : Cost = {}, Avg time = {}".format(batch_idx, batch_cost / batch_size, time_avg))
                     if self.decay is not 0.0 and learning_rate > 5e-2:
                         learning_rate *= (1. / (1. + self.decay * (batch_idx / 10.0)))
                         # print("New learning rate = ", learning_rate)
+                """
 
                 if (test_data is not None) and batch_idx % 200 == 0:
                     curr_accuracy, cost = self.score(test_data[:, :-1], test_data[:, -1])
-                    test_cost.append(cost)
-                    test_accuracy.append(curr_accuracy)
-                    print("Test accuracy = {}, Test dataset prediction cost = {}".format(curr_accuracy, cost))
-                    print("Training cost = {}".format(train_cost[-1]))
+                    test_cost.append([epoch * num_mini_batches + batch_idx, cost])
+                    test_accuracy.append([epoch * num_mini_batches + batch_idx, curr_accuracy])
+                    print("Batch {}".format(int(batch_idx)))
+                    print("Training cost = {:.4}, Test prediction cost = {:.4}, Test accuracy = {:.4}".
+                          format(batch_cost / batch_size, cost, curr_accuracy))
 
             print("Learning rate = {}".format(learning_rate))
-            print("Epoch %i : Cost = %.5f, Average time per batch = %.3f sec. Total time taken for 1 epoch = %.3f sec"
-                  %(epoch, np.mean(train_cost), np.mean(time_per_batch), np.sum(time_per_batch)))
+            print("Epoch %i : Average time per batch = %.3f sec. Total time taken for 1 epoch = %.3f sec"
+                  %(epoch, np.mean(time_per_batch), np.sum(time_per_batch)))
             curr_accuracy, cost = self.score(test_data[:, :-1], test_data[:, -1])
-            print("Test accuracy = {}, Test dataset prediction cost = {}".format(curr_accuracy, cost))
+            test_cost.append([epoch * num_mini_batches + batch_idx, cost])
+            test_accuracy.append([epoch * num_mini_batches + batch_idx, curr_accuracy])
+            print("Test accuracy = {:.4}, Test prediction cost = {:.4}\n".format(curr_accuracy, cost))
             if save_model:
                 joblib.dump(self, model_name + str(epoch))
 
