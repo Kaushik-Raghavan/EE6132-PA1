@@ -9,5 +9,5 @@ Built a neural network model
 3. To evaluate model with test data:  
     `python main.py --evaluate --model_path <str: location where model is stored>`
     
-**Sample command**
-python main.py --train --hidden_activation sigmoid --epochs 8 --lr 0.05 --momentum 0.9 --model_dir ./models --splname mom09
+**Sample command**   
+`python main.py --train --hidden_activation sigmoid --epochs 8 --lr 0.05 --momentum 0.9 --model_dir ./models --splname mom09`
