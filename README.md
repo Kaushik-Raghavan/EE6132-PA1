@@ -3,8 +3,8 @@ Built a neural network model
 
 ## Run
 1. To cross-validate:  
-   `python main.py --hidden_activation sigmoid --lr .01 --momentum 0.9 --model_dir ./models --epochs 4 --cross_validate True`   
-    Try varying momentum and learning rate to and compare the results obtained from cross validation
-2. To run with test data:  
-    `python main.py --hidden_activation sigmoid --lr .01 --momentum 0.9 --model_dir ./models --epochs 8`   
-    To hidden activation to relu, `--hidden_activation relu`
+   `python main.py --train --cross_validate --hidden_activation <sigmoid or relu> --lr <float> --momentum <float> --model_dir <str: path to directory where model should be stored> --epochs <integer> --splname <str: special name appended to model>` 
+2. To simply train:  
+   `python main.py --train --hidden_activation <sigmoid or relu> --lr <float> --momentum <float> --model_dir <str: path to directory where model should be stored> --epochs <integer> --splname <str: special name appended to model>`
+3. To evaluate model with test data:  
+    `python main.py --evaluate --model_path <str: location where model is stored>   
