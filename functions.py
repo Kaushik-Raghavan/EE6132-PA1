@@ -53,20 +53,20 @@ class FunctionLibrary:
 
     @staticmethod
     def l2_loss(x):
-        return np.mean(x ** 2)
+        return np.sum(x ** 2)
 
     @staticmethod
     def l2_loss_grad(x):
-        return 2 * x / x.size
+        return 2 * x
 
     @staticmethod
     def l1_loss(x):
-        return np.mean(np.abs(x))
+        return np.sum(np.abs(x))
 
     @staticmethod
     def l1_loss_grad(x):
         ret = np.where(x > 0, 1, -1) * np.where(x == 0, 0, 1)
-        return ret.reshape(x.shape) / x.size
+        return ret.reshape(x.shape)
 
     @staticmethod
     def mse(x, y):

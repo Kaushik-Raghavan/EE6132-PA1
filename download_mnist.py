@@ -5,6 +5,12 @@ import gzip
 import shutil
 
 SOURCE_URL = 'http://yann.lecun.com/exdb/mnist/'
+TRAIN_IMAGES = 'train-images-idx3-ubyte.gz'
+TRAIN_LABELS = 'train-labels-idx1-ubyte.gz'
+TEST_IMAGES = 't10k-images-idx3-ubyte.gz'
+TEST_LABELS = 't10k-labels-idx1-ubyte.gz'
+
+
 def maybe_download(filename, work_directory):
     """Download the data from Yann's website, unless it's already here."""
     if not os.path.exists(work_directory):
@@ -16,10 +22,6 @@ def maybe_download(filename, work_directory):
         print('Successfully downloaded', filename, statinfo.st_size, 'bytes.')
     return filepath
 
-TRAIN_IMAGES = 'train-images-idx3-ubyte.gz'
-TRAIN_LABELS = 'train-labels-idx1-ubyte.gz'
-TEST_IMAGES = 't10k-images-idx3-ubyte.gz'
-TEST_LABELS = 't10k-labels-idx1-ubyte.gz'
 
 def downloadMNIST(dst):
     print("Downloading MNIST data from ", SOURCE_URL, " if the data is not already present")

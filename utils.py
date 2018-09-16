@@ -1,9 +1,15 @@
 from matplotlib import pyplot as plt
 import download_mnist as dm
 from mnist import MNIST
+from skimage import feature
 import numpy as np
+import sys
 import cv2
 import os
+import scipy
+
+
+thismodule = sys.modules[__name__]
 
 
 def one_hot(x, size):
@@ -38,6 +44,17 @@ def plot_from_files(list_of_files, title_name=None):
         plt.plot(data[:, 0], data[:, 1])
 
     plt.show()
+
+
+def read_from_file(filepath):
+    file_lines = open(filepath, "r").readlines()
+    data = []
+    for line in file_lines:
+        curr_line = []
+        for num in line.split(" "):
+            curr_line.append(float(num))
+        data.append(curr_line)
+    return np.squeeze(np.array(data))
 
 
 def read_mnist():
@@ -93,30 +110,47 @@ def metrics(predicted_labels, ground_truth_labels, num_classes):
                     tn[i] += 1
 
     total_accuracy = all_tp / len(ground_truth_labels)
-    accuracy = (tp + tn) / (tp + tn + fp + fn)
     precision = tp / (tp + fp)
     recall = tp / (tp + fn)
     f1_score = 2.0 * precision * recall / (precision + recall)
 
-    return total_accuracy, accuracy, precision, recall, f1_score
+    return total_accuracy, np.mean(precision), np.mean(recall), np.mean(f1_score)
 
 
 """ Data Augmentation """
 
 
-def random_deskew(img, height, width):
+def random_deskew(image, height, width):
     # change 1D image to 2D image representation
-    original_shape = img.shape
-    img.reshape(original_shape[:-1] + (height,  width))
+    original_shape = image.shape
+    image = image.reshape(original_shape[:-1] + (height,  width))
 
     center = (width // 2, height // 2)
-    angle = np.random.rand() - 0.5
+    angle = (np.random.rand() - 0.5) * 60.0
     M = cv2.getRotationMatrix2D(center, angle, 1.0)
-    rotated = cv2.warpAffine(img, M, (width, height), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
+    rotated = cv2.warpAffine(image, M, (width, height), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
     return rotated.reshape(original_shape)
 
 
-def random_noise(img, std=0.01):
+def add_noise(img, std=0.01):
     noise = np.random.normal(loc=0.0, scale=std, size=img.shape)
     return img + noise
 
+
+def augment_batch(batch):
+    h, w = 28, 28
+    ret = np.array([random_deskew(img, h, w) for img in batch]) + np.random.normal(0, 5.0, batch.shape)
+    # ret = np.array([add_noise(img) for img in ret])
+    # ret = batch.copy()
+    return ret
+
+
+def sift_features(img):
+    sift = cv2.xfeatures2d.SIFT_create()
+    kp1, des1 = sift.detectAndCompute(img, None)
+
+
+def hog_features(img):
+    h, w = 28, 28
+    H = feature.hog(img.reshape(h, w), orientations=9, pixels_per_cell=(7, 7), block_norm='L2')
+    return H

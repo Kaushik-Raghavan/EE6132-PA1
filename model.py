@@ -3,6 +3,7 @@ import random
 import functions
 import time
 import joblib
+import utils
 
 
 def one_hot(x, size):
@@ -31,7 +32,7 @@ class Model:
         self.num_layers = len(layers)
         std = 0.08
         if hidden_activation_name == "relu":  # To avoid overflow while computing softmax
-            std = 0.01
+            std = 0.02
         self.weights = np.array([np.random.normal(loc=0.0, scale=std, size=(layers[i], layers[i - 1]))
                                  for i in range(1, self.num_layers)])
         self.bias = np.array([np.random.normal(loc=0.0, scale=std, size=(layers[i], 1))
@@ -137,6 +138,8 @@ class Model:
             # delta is the gradient of linear accumulation of values at layer i + 1 wrt cost function
 
             # gradient of weights connecting layer i to i + 1
+            # cost += self.l1_weight * self.l1_loss.func(self.weights[i]) \
+            #        + self.l2_weight * self.l2_loss.func(self.weights[i])
             grad_weights.append(np.matmul(delta, np.transpose(self.A[i], axes=(0, 2, 1))))
             if self.l2_weight > 0:
                 grad_weights[-1] += self.l2_weight * self.l2_loss.grad(self.weights[i])
@@ -153,7 +156,8 @@ class Model:
         return np.array(grad_weights), np.array(grad_biases), cost
 
     def fit(self, train_data, test_data=None, mini_batch_size=10, num_epochs=10, learning_rate=1.0, lr_decay=0.01,
-            momentum_factor=0.1, l2_weight=0.0, l1_weight=0.0, save_model=False, model_name="NeuralNetwork"):
+            momentum_factor=0.1, l2_weight=0.0, l1_weight=0.0, data_augmentation=False,
+            save_model=False, model_name="NeuralNetwork"):
         """
         :param save_model:
         :param model_name:
@@ -196,7 +200,10 @@ class Model:
                 start_index = int(batch_idx * mini_batch_size)
                 end_index = min(start_index + mini_batch_size, num_data)
                 batch_size = float(end_index - start_index)
-                batch = train_data[start_index: end_index]
+                batch = train_data[start_index: end_index].copy()
+
+                if data_augmentation:
+                    batch[:, :-1] = utils.augment_batch(batch[:, :-1])
 
                 tik = time.clock()
 
@@ -221,7 +228,7 @@ class Model:
                 """
 
                 if (test_data is not None) and batch_idx % 200 == 0:
-                    curr_accuracy, cost = self.score(test_data[:, :-1], test_data[:, -1])
+                    curr_accuracy, cost, _ = self.score(test_data[:, :-1], test_data[:, -1])
                     test_cost.append([epoch * num_mini_batches + batch_idx, cost])
                     test_accuracy.append([epoch * num_mini_batches + batch_idx, curr_accuracy])
                     print("Batch {}".format(int(batch_idx)))
@@ -230,13 +237,13 @@ class Model:
 
             print("Learning rate = {}".format(learning_rate))
             print("Epoch %i : Average time per batch = %.3f sec. Total time taken for 1 epoch = %.3f sec"
-                  %(epoch, np.mean(time_per_batch), np.sum(time_per_batch)))
-            curr_accuracy, cost = self.score(test_data[:, :-1], test_data[:, -1])
+                  % (epoch, np.mean(time_per_batch), np.sum(time_per_batch)))
+            curr_accuracy, cost, _ = self.score(test_data[:, :-1], test_data[:, -1])
             test_cost.append([epoch * num_mini_batches + batch_idx, cost])
             test_accuracy.append([epoch * num_mini_batches + batch_idx, curr_accuracy])
             print("Test accuracy = {:.4}, Test prediction cost = {:.4}\n".format(curr_accuracy, cost))
             if save_model:
-                joblib.dump(self, model_name + str(epoch))
+                joblib.dump(self, model_name + '_' + 'epoch_' + str(epoch))
 
         return self, np.array(train_cost), np.array(test_cost), np.array(test_accuracy)
 
@@ -261,9 +268,17 @@ class Model:
 
     def score(self, test_input, test_labels):
         prediction = self.predict(test_input, one_hot_output=True)
-        cost = self.loss_fn.func(prediction, one_hot(test_labels, self.layers[-1]).reshape(prediction.shape))
-        cost /= len(test_labels)
+        costs = np.array([self.loss_fn.func(pred, one_hot(l, self.layers[-1]).reshape(pred.shape))
+                 for pred, l in zip(prediction, test_labels)])
+        # cost_mean = self.loss_fn.func(prediction, one_hot(test_labels, self.layers[-1]).reshape(prediction.shape))
+        # cost_mean /= len(test_labels)
         prediction = np.squeeze(np.argmax(prediction, axis=-2))
         num_correct = np.where(prediction == test_labels)[0].shape[0]
         accuracy = num_correct / len(test_labels)
-        return accuracy, cost
+        return accuracy, costs.mean(), costs.std()
+
+    def top_n_guess(self, test_input, n):
+        assert n <= self.layers[-1], "n should be <= {}".format(self.layers[-1])
+        prediction = self.predict(test_input, one_hot_output=True)
+        prediction = np.squeeze(prediction)
+        return prediction.argsort(axis=1)[-n:][::-1]
