@@ -1,4 +1,4 @@
-# EE6123-PA1
+# EE6132-PA1
 A Neural Network implementation
 
 ## Run
